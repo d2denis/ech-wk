@@ -41,8 +41,8 @@ try:
                                   QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                                   QComboBox, QTextEdit, QCheckBox, QGroupBox, 
                                   QMessageBox, QInputDialog, QSystemTrayIcon, QMenu, QAction)
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal
-    from PyQt5.QtGui import QIcon, QTextCursor
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
+    from PyQt5.QtGui import QIcon, QTextCursor, QPixmap, QPainter, QColor, QFont
     HAS_PYQT = True
     
     # 注册 QTextCursor 类型以避免信号槽错误
@@ -373,32 +373,58 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle(APP_TITLE)
-        self.setGeometry(100, 100, 900, 750)
+        self.setGeometry(100, 100, 950, 800)
+        
+        # 设置窗口图标
+        self.setWindowIcon(self._create_matrix_icon())
+        
+        # 应用现代化样式
+        self.setStyleSheet(self._get_modern_style())
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
         
         # 服务器管理
         server_group = QGroupBox("服务器管理")
         server_layout = QHBoxLayout()
-        server_layout.addWidget(QLabel("选择服务器:"))
+        server_layout.setSpacing(10)
+        server_label = QLabel("选择服务器:")
+        server_label.setStyleSheet("font-weight: 600;")
+        server_layout.addWidget(server_label)
         self.server_combo = QComboBox()
         self.server_combo.currentIndexChanged.connect(self.on_server_changed)
-        server_layout.addWidget(self.server_combo)
-        server_layout.addWidget(QPushButton("新增", clicked=self.add_server))
-        server_layout.addWidget(QPushButton("保存", clicked=self.save_server))
-        server_layout.addWidget(QPushButton("重命名", clicked=self.rename_server))
-        server_layout.addWidget(QPushButton("删除", clicked=self.delete_server))
+        server_layout.addWidget(self.server_combo, 1)
+        
+        # 按钮组
+        btn_new = QPushButton("新增")
+        btn_new.clicked.connect(self.add_server)
+        btn_save = QPushButton("保存")
+        btn_save.clicked.connect(self.save_server)
+        btn_rename = QPushButton("重命名")
+        btn_rename.clicked.connect(self.rename_server)
+        btn_delete = QPushButton("删除")
+        btn_delete.clicked.connect(self.delete_server)
+        
+        server_layout.addWidget(btn_new)
+        server_layout.addWidget(btn_save)
+        server_layout.addWidget(btn_rename)
+        server_layout.addWidget(btn_delete)
+        server_layout.addStretch()
         server_group.setLayout(server_layout)
         layout.addWidget(server_group)
         
         # 核心配置
         core_group = QGroupBox("核心配置")
         core_layout = QVBoxLayout()
+        core_layout.setSpacing(12)
         self.server_edit = QLineEdit()
+        self.server_edit.setPlaceholderText("例如: your-worker.workers.dev:443")
         core_layout.addWidget(self.create_label_edit("服务地址:", self.server_edit))
         self.listen_edit = QLineEdit()
+        self.listen_edit.setPlaceholderText("例如: 127.0.0.1:30000")
         core_layout.addWidget(self.create_label_edit("监听地址:", self.listen_edit))
         core_group.setLayout(core_layout)
         layout.addWidget(core_group)
@@ -406,15 +432,22 @@ class MainWindow(QMainWindow):
         # 高级选项
         advanced_group = QGroupBox("高级选项 (可选)")
         advanced_layout = QVBoxLayout()
+        advanced_layout.setSpacing(12)
         self.token_edit = QLineEdit()
+        self.token_edit.setPlaceholderText("身份验证令牌（可选）")
+        self.token_edit.setEchoMode(QLineEdit.Password)
         advanced_layout.addWidget(self.create_label_edit("身份令牌:", self.token_edit))
         row1 = QHBoxLayout()
+        row1.setSpacing(10)
         self.ip_edit = QLineEdit()
+        self.ip_edit.setPlaceholderText("例如: saas.sin.fan")
         row1.addWidget(self.create_label_edit("优选IP或域名:", self.ip_edit))
         self.dns_edit = QLineEdit()
+        self.dns_edit.setPlaceholderText("例如: dns.alidns.com/dns-query")
         row1.addWidget(self.create_label_edit("DOH服务器:", self.dns_edit))
         advanced_layout.addLayout(row1)
         self.ech_edit = QLineEdit()
+        self.ech_edit.setPlaceholderText("例如: cloudflare-ech.com")
         advanced_layout.addWidget(self.create_label_edit("ECH域名:", self.ech_edit))
         advanced_group.setLayout(advanced_layout)
         layout.addWidget(advanced_group)
@@ -422,13 +455,16 @@ class MainWindow(QMainWindow):
         # 分流设置
         routing_group = QGroupBox("分流设置")
         routing_layout = QHBoxLayout()
-        routing_layout.addWidget(QLabel("代理模式:"))
+        routing_layout.setSpacing(10)
+        routing_label = QLabel("代理模式:")
+        routing_label.setStyleSheet("font-weight: 600;")
+        routing_layout.addWidget(routing_label)
         self.routing_combo = QComboBox()
         self.routing_combo.addItem("全局代理", "global")
-        self.routing_combo.addItem("跳过中国大陆", "bypass_cn")
+        self.routing_combo.addItem("🇨🇳 跳过中国大陆", "bypass_cn")
         self.routing_combo.addItem("不改变代理", "none")
         self.routing_combo.currentIndexChanged.connect(self.on_routing_changed)
-        routing_layout.addWidget(self.routing_combo)
+        routing_layout.addWidget(self.routing_combo, 1)
         routing_layout.addStretch()
         routing_group.setLayout(routing_layout)
         layout.addWidget(routing_group)
@@ -436,6 +472,7 @@ class MainWindow(QMainWindow):
         # 控制按钮
         control_group = QGroupBox("控制")
         control_layout = QHBoxLayout()
+        control_layout.setSpacing(10)
         self.start_btn = QPushButton("启动代理")
         self.start_btn.clicked.connect(self.start_process)
         self.stop_btn = QPushButton("停止")
@@ -451,7 +488,9 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self.proxy_btn)
         control_layout.addWidget(self.auto_start_check)
         control_layout.addStretch()
-        control_layout.addWidget(QPushButton("清空日志", clicked=self.clear_log))
+        btn_clear = QPushButton("清空日志")
+        btn_clear.clicked.connect(self.clear_log)
+        control_layout.addWidget(btn_clear)
         control_group.setLayout(control_layout)
         layout.addWidget(control_group)
         
@@ -463,10 +502,346 @@ class MainWindow(QMainWindow):
         log_layout = QVBoxLayout()
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QApplication.font())
+        # 使用等宽字体，更适合日志显示
+        from PyQt5.QtGui import QFont
+        font = QFont("Consolas" if sys.platform == 'win32' else "Monaco" if sys.platform == 'darwin' else "DejaVu Sans Mono", 9)
+        self.log_text.setFont(font)
         log_layout.addWidget(self.log_text)
         log_group.setLayout(log_layout)
         layout.addWidget(log_group)
+    
+    def _create_matrix_icon(self):
+        """创建图标"""
+        # 创建不同尺寸的图标
+        sizes = [16, 32, 48, 64, 128, 256]
+        icon = QIcon()
+        
+        for size in sizes:
+            pixmap = QPixmap(size, size)
+            pixmap.fill(QColor(0, 0, 0))  # 黑色背景
+            
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            
+            # 绘制绿色边框
+            painter.setPen(QColor(0, 255, 65))  # 矩阵绿
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(2, 2, size - 4, size - 4)
+            
+            # 绘制内部装饰（矩阵代码风格）
+            if size >= 32:
+                # 绘制一些绿色线条和点，模拟矩阵代码
+                painter.setPen(QColor(0, 255, 65))
+                
+                # 绘制对角线
+                if size >= 48:
+                    painter.drawLine(4, 4, size - 4, size - 4)
+                    painter.drawLine(size - 4, 4, 4, size - 4)
+                
+                # 绘制中心点
+                center = size // 2
+                painter.setBrush(QColor(0, 255, 65))
+                painter.drawEllipse(center - 2, center - 2, 4, 4)
+                
+                # 绘制一些装饰线条
+                if size >= 64:
+                    # 绘制四个角的装饰
+                    corner_size = size // 4
+                    painter.setPen(QColor(0, 200, 50))  # 稍暗的绿色
+                    # 左上角
+                    painter.drawLine(4, 4, corner_size, 4)
+                    painter.drawLine(4, 4, 4, corner_size)
+                    # 右上角
+                    painter.drawLine(size - 4, 4, size - corner_size, 4)
+                    painter.drawLine(size - 4, 4, size - 4, corner_size)
+                    # 左下角
+                    painter.drawLine(4, size - 4, corner_size, size - 4)
+                    painter.drawLine(4, size - 4, 4, size - corner_size)
+                    # 右下角
+                    painter.drawLine(size - 4, size - 4, size - corner_size, size - 4)
+                    painter.drawLine(size - 4, size - 4, size - 4, size - corner_size)
+            
+            painter.end()
+            icon.addPixmap(pixmap)
+        
+        return icon
+    
+    def _get_modern_style(self):
+        """获取样式表"""
+        return """
+        /* 主窗口样式 - 深色背景 */
+        QMainWindow {
+            background-color: #000000;
+        }
+        
+        /* 分组框样式 - 矩阵绿色边框 */
+        QGroupBox {
+            font-weight: 600;
+            font-size: 13px;
+            color: #00ff41;
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            margin-top: 12px;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            background-color: #0a0a0a;
+        }
+        
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 15px;
+            padding: 0 8px;
+            background-color: #000000;
+            color: #00ff41;
+        }
+        
+        /* 标签样式 - 绿色文字 */
+        QLabel {
+            color: #00ff41;
+            font-size: 13px;
+            min-width: 100px;
+        }
+        
+        /* 输入框样式 - 深色背景，绿色边框 */
+        QLineEdit {
+            border: 2px solid #003311;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            background-color: #0a0a0a;
+            color: #00ff41;
+            selection-background-color: #00ff41;
+            selection-color: #000000;
+        }
+        
+        QLineEdit:focus {
+            border: 2px solid #00ff41;
+            background-color: #001a0a;
+        }
+        
+        QLineEdit:disabled {
+            background-color: #050505;
+            color: #006622;
+            border: 2px solid #002211;
+        }
+        
+        /* 下拉框样式 */
+        QComboBox {
+            border: 2px solid #003311;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            background-color: #0a0a0a;
+            color: #00ff41;
+            min-width: 150px;
+        }
+        
+        QComboBox:hover {
+            border: 2px solid #00ff41;
+        }
+        
+        QComboBox:focus {
+            border: 2px solid #00ff41;
+            background-color: #001a0a;
+        }
+        
+        QComboBox:disabled {
+            background-color: #050505;
+            color: #006622;
+            border: 2px solid #002211;
+        }
+        
+        QComboBox::drop-down {
+            border: none;
+            width: 30px;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background-color: transparent;
+        }
+        
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #00ff41;
+            width: 0;
+            height: 0;
+        }
+        
+        QComboBox QAbstractItemView {
+            border: 2px solid #00ff41;
+            border-radius: 6px;
+            background-color: #0a0a0a;
+            selection-background-color: #00ff41;
+            selection-color: #000000;
+            padding: 4px;
+            color: #00ff41;
+        }
+        
+        /* 按钮样式 - 绿色主题 */
+        QPushButton {
+            background-color: #003311;
+            color: #00ff41;
+            border: 2px solid #00ff41;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 100px;
+        }
+        
+        QPushButton:hover {
+            background-color: #00ff41;
+            color: #000000;
+            border: 2px solid #00ff41;
+        }
+        
+        QPushButton:pressed {
+            background-color: #00cc33;
+            color: #000000;
+        }
+        
+        QPushButton:disabled {
+            background-color: #001a0a;
+            color: #006622;
+            border: 2px solid #003311;
+        }
+        
+        /* 停止按钮特殊样式 - 红色警告 */
+        QPushButton[text="停止"] {
+            background-color: #330000;
+            color: #ff0044;
+            border: 2px solid #ff0044;
+        }
+        
+        QPushButton[text="停止"]:hover {
+            background-color: #ff0044;
+            color: #000000;
+        }
+        
+        QPushButton[text="停止"]:pressed {
+            background-color: #cc0033;
+            color: #000000;
+        }
+        
+        /* 清空日志按钮样式 */
+        QPushButton[text="清空日志"] {
+            background-color: #1a1a1a;
+            color: #888888;
+            border: 2px solid #444444;
+        }
+        
+        QPushButton[text="清空日志"]:hover {
+            background-color: #444444;
+            color: #00ff41;
+            border: 2px solid #00ff41;
+        }
+        
+        /* 复选框样式 */
+        QCheckBox {
+            color: #00ff41;
+            font-size: 13px;
+            spacing: 8px;
+        }
+        
+        QCheckBox::indicator {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00ff41;
+            border-radius: 4px;
+            background-color: #0a0a0a;
+        }
+        
+        QCheckBox::indicator:hover {
+            background-color: #001a0a;
+        }
+        
+        QCheckBox::indicator:checked {
+            background-color: #00ff41;
+            border: 2px solid #00ff41;
+            image: none;
+        }
+        
+        QCheckBox::indicator:checked::after {
+            content: "✓";
+            color: #000000;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        /* 文本编辑框样式（日志） - 矩阵风格 */
+        QTextEdit {
+            border: 2px solid #00ff41;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 12px;
+            background-color: #000000;
+            color: #00ff41;
+            selection-background-color: #00ff41;
+            selection-color: #000000;
+        }
+        
+        QTextEdit:focus {
+            border: 2px solid #00ff41;
+        }
+        
+        /* 滚动条样式 - 绿色主题 */
+        QScrollBar:vertical {
+            border: none;
+            background-color: #0a0a0a;
+            width: 12px;
+            margin: 0;
+        }
+        
+        QScrollBar::handle:vertical {
+            background-color: #003311;
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            min-height: 20px;
+            margin: 2px;
+        }
+        
+        QScrollBar::handle:vertical:hover {
+            background-color: #00ff41;
+        }
+        
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0;
+        }
+        
+        QScrollBar:horizontal {
+            border: none;
+            background-color: #0a0a0a;
+            height: 12px;
+            margin: 0;
+        }
+        
+        QScrollBar::handle:horizontal {
+            background-color: #003311;
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            min-width: 20px;
+            margin: 2px;
+        }
+        
+        QScrollBar::handle:horizontal:hover {
+            background-color: #00ff41;
+        }
+        
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0;
+        }
+        
+        /* 布局间距 */
+        QVBoxLayout {
+            spacing: 10px;
+        }
+        
+        QHBoxLayout {
+            spacing: 10px;
+        }
+        """
     
     def init_tray_icon(self):
         """初始化系统托盘图标"""
@@ -476,17 +851,19 @@ class MainWindow(QMainWindow):
         # 创建系统托盘图标
         self.tray_icon = QSystemTrayIcon(self)
         
-        # 尝试创建简单的图标（如果没有图标文件，使用默认图标）
+        # 使用图标
         try:
-            # 创建一个简单的图标
-            icon = QIcon()
-            # 使用应用程序图标或创建一个简单的图标
-            if hasattr(QApplication, 'style'):
-                icon = self.style().standardIcon(self.style().SP_ComputerIcon)
+            icon = self._create_matrix_icon()
             self.tray_icon.setIcon(icon)
         except:
             # 如果创建图标失败，使用默认图标
-            pass
+            try:
+                icon = QIcon()
+                if hasattr(QApplication, 'style'):
+                    icon = self.style().standardIcon(self.style().SP_ComputerIcon)
+                self.tray_icon.setIcon(icon)
+            except:
+                pass
         
         self.tray_icon.setToolTip(APP_TITLE)
         
@@ -699,8 +1076,13 @@ class MainWindow(QMainWindow):
         """创建标签和输入框"""
         widget = QWidget()
         layout = QHBoxLayout(widget)
-        layout.addWidget(QLabel(label_text))
-        layout.addWidget(edit_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        label = QLabel(label_text)
+        label.setMinimumWidth(120)
+        label.setStyleSheet("font-weight: 500;")
+        layout.addWidget(label)
+        layout.addWidget(edit_widget, 1)
         return widget
     
     def init_server_combo(self):
